@@ -1,0 +1,239 @@
+import React, { useState, useEffect } from 'react';
+import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
+import { AuthProvider, useAuth } from './context/AuthContext';
+import Login from './pages/Login';
+import Sidebar from './components/Sidebar';
+import Navbar from './components/Navbar';
+import Dashboard from './pages/Dashboard';
+import Documents from './pages/Documents';
+import Signatures from './pages/Signatures';
+import Certificates from './pages/Certificates';
+import Teams from './pages/Teams';
+import Integrations from './pages/Integrations';
+import Templates from './pages/Templates';
+import UsersAndRoles from './pages/UsersAndRoles';
+import AuditTrail from './pages/AuditTrail';
+import Settings from './pages/Settings';
+
+// Mock data functions
+const getMockStats = () => ({
+    documents: { total: 124, signed: 89, pending: 20, draft: 10, rejected: 5 },
+    certificates: { total: 45, valid: 40, expired: 3, expiringSoon: 2, nextExpiry: 'LEXA-SSL-2027 (15 Des 2026)' }
+});
+
+const getMockRecentDocs = () => [
+    { id: 1, title: 'Perjanjian Kerja Sama Vendor', type: 'PDF', status: 'signed', date: 'Hari ini, 10:30' },
+    { id: 2, title: 'Surat Keputusan Direksi', type: 'PDF', status: 'pending', date: 'Hari ini, 09:15' },
+    { id: 3, title: 'NDA Project Phoenix', type: 'DOCX', status: 'draft', date: 'Kemarin, 16:45' },
+    { id: 4, title: 'Invoice Pembelian Software', type: 'PDF', status: 'signed', date: 'Kemarin, 14:20' }
+];
+
+const getMockActivities = () => [
+    { id: 1, action: 'signed', description: 'Budi menandatangani "Perjanjian Kerja Sama Vendor"', time: '10:30 AM' },
+    { id: 2, action: 'upload', description: 'Anda mengunggah "Surat Keputusan Direksi"', time: '09:15 AM' },
+    { id: 3, action: 'system', description: 'Sistem memperbarui sertifikat root LEXA CA', time: '01:00 AM' },
+    { id: 4, action: 'update', description: 'Rina mengubah peran "Admin" untuk tim Finance', time: 'Kemarin, 15:30' }
+];
+
+const getMockNotifications = () => [
+    { id: 1, title: 'Dokumen Ditandatangani', message: 'Budi telah menandatangani NDA Project Phoenix', time: '5m lalu' },
+    { id: 2, title: 'Peringatan Sertifikat', message: 'Sertifikat SSL Server akan kadaluarsa dalam 5 hari', time: '2j lalu' }
+];
+
+function DashboardLayout() {
+    const { user, loading, upgradePlan } = useAuth();
+    const [currentTab, setCurrentTab] = useState('dashboard');
+    const [notifications, setNotifications] = useState([]);
+    const [stats, setStats] = useState({
+        documents: { total: 0, signed: 0, pending: 0, draft: 0, rejected: 0 },
+        certificates: { total: 0, valid: 0, expired: 0, expiringSoon: 0, nextExpiry: '' }
+    });
+    const [recentDocs, setRecentDocs] = useState([]);
+    const [activities, setActivities] = useState([]);
+    const [showUpgradeModal, setShowUpgradeModal] = useState(false);
+
+    const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+
+    const fetchDashboardData = () => {
+        // Mock data fetch
+        setTimeout(() => {
+            const storedDocs = JSON.parse(localStorage.getItem('lexa_mock_docs') || '[]');
+            
+            // Calculate dynamic stats based on role/auth context if needed, here just raw docs
+            const signed = storedDocs.filter(d => d.status === 'signed').length;
+            const pending = storedDocs.filter(d => d.status === 'pending').length;
+            const draft = storedDocs.filter(d => d.status === 'draft').length;
+            const rejected = storedDocs.filter(d => d.status === 'rejected').length;
+            const total = storedDocs.length;
+            
+            const pendingForMe = storedDocs.filter(d => d.status === 'pending' && d.target_signer_email === user?.email).length;
+            
+            const dynamicStats = {
+                documents: { total, signed, pending, draft, rejected, pendingForMe },
+                certificates: getMockStats().certificates // Keep cert stats static for now
+            };
+            
+            setStats(dynamicStats);
+            setRecentDocs(storedDocs.slice(0, 5)); // Get top 5 recent docs
+            setActivities(getMockActivities());
+            setNotifications(getMockNotifications());
+        }, 300);
+    };
+
+    useEffect(() => {
+        if (user) {
+            fetchDashboardData();
+        }
+    }, [user, currentTab]);
+
+    if (loading) {
+        return (
+            <div className="min-h-screen flex items-center justify-center bg-slate-50 text-slate-500">
+                Loading...
+            </div>
+        );
+    }
+
+    if (!user) {
+        return <Navigate to="/login" replace />;
+    }
+
+    const handleUpgrade = (plan) => {
+        // Mock API call to upgrade
+        setTimeout(() => {
+            upgradePlan(plan);
+            setShowUpgradeModal(false);
+            fetchDashboardData();
+        }, 500);
+    };
+
+    const renderActiveTabContent = () => {
+        switch (currentTab) {
+            case 'dashboard':
+                return (
+                    <Dashboard 
+                        stats={stats} 
+                        recentDocs={recentDocs} 
+                        activities={activities} 
+                        onNavigateToTab={setCurrentTab} 
+                    />
+                );
+            case 'documents':
+                return <Documents />;
+            case 'signatures':
+                return <Signatures />;
+            case 'certificates':
+                return <Certificates />;
+            case 'templates':
+                return <Templates />;
+            case 'users':
+                return <UsersAndRoles />;
+            case 'teams':
+                return <Teams />;
+            case 'audit':
+                return <AuditTrail />;
+            case 'integrations':
+                return <Integrations />;
+            case 'settings':
+                return <Settings />;
+            default:
+                return <Navigate to="/" replace />;
+        }
+    };
+
+    return (
+        <div className="flex bg-slate-50 h-screen overflow-hidden relative">
+            {/* Mobile Sidebar Overlay */}
+            {isSidebarOpen && (
+                <div 
+                    className="fixed inset-0 bg-slate-900/50 z-40 md:hidden"
+                    onClick={() => setIsSidebarOpen(false)}
+                ></div>
+            )}
+            
+            <Sidebar 
+                currentTab={currentTab} 
+                setCurrentTab={(tab) => {
+                    setCurrentTab(tab);
+                    setIsSidebarOpen(false); // Close sidebar on mobile when navigating
+                }} 
+                isOpen={isSidebarOpen}
+            />
+            
+            <div className="flex-1 flex flex-col overflow-hidden w-full">
+                <Navbar 
+                    currentTab={currentTab} 
+                    notifications={notifications} 
+                    setNotifications={setNotifications} 
+                    onUpgradeClick={() => setShowUpgradeModal(true)}
+                    onToggleSidebar={() => setIsSidebarOpen(!isSidebarOpen)}
+                />
+                <main className="flex-1 overflow-y-auto bg-slate-50/50 w-full">
+                    {renderActiveTabContent()}
+                </main>
+            </div>
+
+            {/* Upgrade Modal */}
+            {showUpgradeModal && (
+                <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+                    <div className="bg-white border border-slate-200 rounded-3xl p-8 max-w-lg w-full shadow-2xl relative">
+                        <h3 className="text-xl font-bold text-slate-950 font-outfit mb-2 text-center">Upgrade Paket Akun LEXA</h3>
+                        <p className="text-xs text-slate-500 mb-6 text-center font-sans">Pilih paket yang sesuai dengan kebutuhan penandatanganan digital Anda.</p>
+
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
+                            {/* Secure Plan */}
+                            <div className="border border-indigo-200 hover:border-indigo-400 p-5 rounded-2xl flex flex-col justify-between transition-colors text-left">
+                                <div>
+                                    <h4 className="text-sm font-bold text-slate-950 font-outfit">LEXA Secure Plan</h4>
+                                    <p className="text-[10px] text-slate-500 mt-1 leading-relaxed font-sans">Cocok untuk penandatanganan dokumen personal tersertifikasi.</p>
+                                </div>
+                                <button 
+                                    onClick={() => handleUpgrade('secure')}
+                                    className="w-full bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-semibold py-2 rounded-xl mt-4 transition-colors cursor-pointer font-sans"
+                                >
+                                    Pilih Secure Plan
+                                </button>
+                            </div>
+
+                            {/* Enterprise Plan */}
+                            <div className="border border-amber-200 hover:border-amber-400 p-5 rounded-2xl flex flex-col justify-between transition-colors text-left">
+                                <div>
+                                    <h4 className="text-sm font-bold text-slate-950 font-outfit">LEXA Enterprise Plan</h4>
+                                    <p className="text-[10px] text-slate-500 mt-1 leading-relaxed font-sans">Penandatanganan tak terbatas dengan kolaborasi tim & akses API Key.</p>
+                                </div>
+                                <button 
+                                    onClick={() => handleUpgrade('enterprise')}
+                                    className="w-full bg-amber-600 hover:bg-amber-700 text-white text-xs font-semibold py-2 rounded-xl mt-4 transition-colors cursor-pointer font-sans"
+                                >
+                                    Pilih Enterprise Plan
+                                </button>
+                            </div>
+                        </div>
+
+                        <div className="text-center font-sans">
+                            <button 
+                                onClick={() => setShowUpgradeModal(false)}
+                                className="text-xs text-slate-400 hover:text-slate-600 font-semibold cursor-pointer"
+                            >
+                                Batal
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+        </div>
+    );
+}
+
+export default function App() {
+    return (
+        <AuthProvider>
+            <Router>
+                <Routes>
+                    <Route path="/login" element={<Login />} />
+                    <Route path="/*" element={<DashboardLayout />} />
+                </Routes>
+            </Router>
+        </AuthProvider>
+    );
+}

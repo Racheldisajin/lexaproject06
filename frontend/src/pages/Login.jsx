@@ -48,11 +48,7 @@ export default function Login() {
             <div className="relative z-10 w-full max-w-md p-4">
                 {/* Logo Header */}
                 <div className="flex flex-col items-center mb-8">
-                    <div className="bg-indigo-600 p-3 rounded-2xl shadow-lg shadow-indigo-500/35 mb-3">
-                        <PenNib size={32} weight="bold" className="text-white" />
-                    </div>
-                    <h1 className="text-3xl font-extrabold tracking-wide font-outfit text-white">LEXA</h1>
-                    <p className="text-xs text-slate-400 font-semibold uppercase tracking-widest mt-1">Digital Signature System</p>
+                    <img src="/logo.png" alt="LEXA Logo" className="h-28 w-auto mb-3" />
                 </div>
 
                 {/* Login/Register Card */}

@@ -57,25 +57,41 @@ function DashboardLayout() {
     const fetchDashboardData = () => {
         // Mock data fetch
         setTimeout(() => {
-            const storedDocs = JSON.parse(localStorage.getItem('lexa_mock_docs') || '[]');
+            let storedDocs = JSON.parse(localStorage.getItem('lexa_mock_docs') || 'null');
+            if (!storedDocs || storedDocs.length === 0) {
+                storedDocs = [
+                    { id: 1, title: 'Perjanjian Kerja Sama Vendor', type: 'Kontrak', status: 'signed', uploaded_by: { name: 'Budi Santoso', email: 'budi@lexa.com' }, target_signers: [{ email: 'admin@lexa.com', status: 'signed' }], target_signer_email: 'admin@lexa.com', date: '10 Mei 2026' },
+                    { id: 2, title: 'Surat Keputusan Direksi', type: 'SOP', status: 'pending', uploaded_by: { name: 'Administrator', email: 'admin@lexa.com' }, target_signers: [{ email: 'user@lexa.com', status: 'pending' }], target_signer_email: 'user@lexa.com', date: '12 Mei 2026' },
+                ];
+                localStorage.setItem('lexa_mock_docs', JSON.stringify(storedDocs));
+            }
+
+            // Sort by newest first
+            const sortedDocs = [...storedDocs].sort((a, b) => b.id - a.id);
             
             // Calculate dynamic stats based on role/auth context if needed, here just raw docs
-            const signed = storedDocs.filter(d => d.status === 'signed').length;
-            const pending = storedDocs.filter(d => d.status === 'pending').length;
-            const draft = storedDocs.filter(d => d.status === 'draft').length;
-            const rejected = storedDocs.filter(d => d.status === 'rejected').length;
-            const total = storedDocs.length;
+            const signed = sortedDocs.filter(d => d.status === 'signed').length;
+            const pending = sortedDocs.filter(d => d.status === 'pending').length;
+            const draft = sortedDocs.filter(d => d.status === 'draft').length;
+            const rejected = sortedDocs.filter(d => d.status === 'rejected').length;
+            const total = sortedDocs.length;
             
-            const pendingForMe = storedDocs.filter(d => d.status === 'pending' && d.target_signer_email === user?.email).length;
+            const pendingForMe = sortedDocs.filter(d => d.status === 'pending' && d.target_signer_email === user?.email).length;
             
             const dynamicStats = {
                 documents: { total, signed, pending, draft, rejected, pendingForMe },
                 certificates: getMockStats().certificates // Keep cert stats static for now
             };
             
+            let storedActs = JSON.parse(localStorage.getItem('lexa_activities') || 'null');
+            if (!storedActs || storedActs.length === 0) {
+                storedActs = getMockActivities();
+                localStorage.setItem('lexa_activities', JSON.stringify(storedActs));
+            }
+
             setStats(dynamicStats);
-            setRecentDocs(storedDocs.slice(0, 5)); // Get top 5 recent docs
-            setActivities(getMockActivities());
+            setRecentDocs(sortedDocs.slice(0, 5)); // Get top 5 recent docs (newest first)
+            setActivities(storedActs);
             setNotifications(getMockNotifications());
         }, 300);
     };
@@ -107,6 +123,29 @@ function DashboardLayout() {
         }, 500);
     };
 
+    const handleDeleteDocument = (id) => {
+        const storedDocs = JSON.parse(localStorage.getItem('lexa_mock_docs') || '[]');
+        const updatedDocs = storedDocs.filter(doc => doc.id !== id);
+        localStorage.setItem('lexa_mock_docs', JSON.stringify(updatedDocs));
+        
+        // Add delete activity
+        const deletedDoc = storedDocs.find(doc => doc.id === id);
+        if (deletedDoc) {
+            const newActivity = {
+                id: Date.now(),
+                action: 'system',
+                description: `Dokumen "${deletedDoc.title}" berhasil dihapus`,
+                time: new Date().toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' }) + ' WIB',
+                date: new Date().toLocaleDateString('id-ID', { day: '2-digit', month: 'short', year: 'numeric' })
+            };
+            const storedActivities = JSON.parse(localStorage.getItem('lexa_activities') || '[]');
+            storedActivities.unshift(newActivity);
+            localStorage.setItem('lexa_activities', JSON.stringify(storedActivities));
+        }
+
+        fetchDashboardData();
+    };
+
     const renderActiveTabContent = () => {
         switch (currentTab) {
             case 'dashboard':
@@ -116,6 +155,7 @@ function DashboardLayout() {
                         recentDocs={recentDocs} 
                         activities={activities} 
                         onNavigateToTab={setCurrentTab} 
+                        onDeleteDoc={handleDeleteDocument}
                     />
                 );
             case 'documents':

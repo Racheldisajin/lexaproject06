@@ -1,32 +1,32 @@
 import React from 'react';
 import { useAuth } from '../context/AuthContext';
 import { 
-    SquaresFour, 
+    House, 
     FileText, 
-    Certificate, 
-    UsersThree, 
-    Key, 
-    SignOut,
-    PenNib,
+    Signature,
+    ShieldCheck, 
     Layout,
     Users,
-    ClockCounterClockwise,
-    Gear
+    UsersThree, 
+    ClipboardText,
+    PuzzlePiece,
+    Gear,
+    SignOut
 } from '@phosphor-icons/react';
 
 export default function Sidebar({ currentTab, setCurrentTab, isOpen }) {
     const { user, logout } = useAuth();
 
     const menuItems = [
-        { id: 'dashboard', name: 'Dashboard', icon: SquaresFour },
+        { id: 'dashboard', name: 'Dashboard', icon: House },
         { id: 'documents', name: 'Documents', icon: FileText },
-        { id: 'signatures', name: 'Signatures', icon: PenNib },
-        { id: 'certificates', name: 'Certificates', icon: Certificate },
+        { id: 'signatures', name: 'Signatures', icon: Signature },
+        { id: 'certificates', name: 'Certificates', icon: ShieldCheck },
         { id: 'templates', name: 'Templates', icon: Layout },
-        ...(user?.role === 'admin' ? [{ id: 'users', name: 'Users & Roles', icon: Users }] : []),
+        { id: 'users', name: 'Users & Roles', icon: Users },
         { id: 'teams', name: 'Teams', icon: UsersThree },
-        ...(user?.role === 'admin' ? [{ id: 'audit', name: 'Audit Trail', icon: ClockCounterClockwise }] : []),
-        { id: 'integrations', name: 'Integrations', icon: Key },
+        { id: 'audit', name: 'Audit Trail', icon: ClipboardText },
+        { id: 'integrations', name: 'Integrations', icon: PuzzlePiece },
         { id: 'settings', name: 'Settings', icon: Gear },
     ];
 
@@ -34,18 +34,12 @@ export default function Sidebar({ currentTab, setCurrentTab, isOpen }) {
         <aside className={`w-64 bg-primary-950 text-slate-300 flex flex-col border-r border-slate-800/40 h-full fixed md:relative z-50 transition-transform duration-300 ${isOpen ? 'translate-x-0' : '-translate-x-full md:translate-x-0'}`}>
             <div className="flex-1 overflow-y-auto">
                 {/* Brand header */}
-                <div className="flex items-center space-x-3 px-6 py-5 border-b border-slate-900/60 bg-primary-950 sticky top-0 z-10">
-                    <div className="bg-indigo-600 p-2 rounded-xl shadow-md shadow-indigo-500/20">
-                        <PenNib size={20} weight="bold" className="text-white" />
-                    </div>
-                    <div>
-                        <h1 className="text-lg font-bold font-outfit text-white tracking-wide leading-none">LEXA</h1>
-                        <span className="text-[9px] font-semibold text-slate-500 uppercase tracking-widest leading-none mt-0.5 block">DS & Cert System</span>
-                    </div>
+                <div className="flex flex-col items-center px-0 pt-6 pb-0 bg-primary-950">
+                    <img src="/logo.png" alt="LEXA Logo" className="w-full h-auto object-contain scale-105 mb-2 pointer-events-none" />
                 </div>
 
                 {/* Menu items */}
-                <nav className="mt-6 px-4 pb-6 space-y-1.5">
+                <nav className="mt-2 px-4 space-y-1.5 relative z-20">
                     {menuItems.map((item) => {
                         const Icon = item.icon;
                         const isActive = currentTab === item.id;
@@ -53,40 +47,60 @@ export default function Sidebar({ currentTab, setCurrentTab, isOpen }) {
                             <button
                                 key={item.id}
                                 onClick={() => setCurrentTab(item.id)}
-                                className={`w-full flex items-center space-x-3 px-4 py-3 rounded-xl text-sm transition-all duration-300 ${
+                                className={`w-full flex items-center space-x-4 px-4 py-3 rounded-xl text-sm transition-all duration-300 ${
                                     isActive
-                                        ? 'nav-item-active text-indigo-400'
-                                        : 'hover:bg-white/5 hover:text-slate-100 text-slate-400'
+                                        ? 'bg-blue-600 text-white'
+                                        : 'hover:bg-white/5 hover:text-slate-100 text-slate-300'
                                 }`}
                             >
-                                <Icon size={20} weight={isActive ? "fill" : "regular"} className={isActive ? "text-indigo-400" : ""} />
-                                <span>{item.name}</span>
+                                <Icon size={20} weight={isActive ? "fill" : "regular"} className={isActive ? "text-white" : "text-slate-300"} />
+                                <span className={isActive ? "font-medium" : ""}>{item.name}</span>
                             </button>
                         );
                     })}
                 </nav>
+
+                {/* Secure Plan Box */}
+                <div className="mx-4 mt-8 mb-6 p-4 rounded-xl border border-blue-500/20 bg-blue-900/20">
+                    <div className="flex items-center space-x-2 mb-2">
+                        <span className="text-yellow-500 text-lg">👑</span>
+                        <h4 className="text-white text-xs font-bold font-outfit">LEXA Secure Plan</h4>
+                    </div>
+                    <p className="text-[10px] text-slate-400 leading-relaxed mb-4">
+                        Tingkatkan ke plan premium untuk fitur lebih lengkap dan penyimpanan lebih besar.
+                    </p>
+                    <button className="w-full py-2 bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold rounded-lg transition-colors">
+                        Upgrade Plan
+                    </button>
+                </div>
             </div>
 
             {/* User footer profile */}
-            <div className="p-4 border-t border-slate-900/60 bg-primary-950 shrink-0 mt-auto">
-                <div className="flex items-center justify-between">
+            <div className="p-4 bg-primary-950 shrink-0 mt-auto flex flex-col space-y-4">
+                <div className="flex items-center justify-between cursor-pointer hover:bg-white/5 p-2 rounded-xl transition-colors">
                     <div className="flex items-center space-x-3">
-                        <div className="w-9 h-9 rounded-xl bg-indigo-600/10 border border-indigo-500/20 flex items-center justify-center font-bold text-indigo-400">
-                            {user?.name.charAt(0)}
-                        </div>
+                        <img 
+                            src="https://ui-avatars.com/api/?name=Rizky+Pratama&background=0D8ABC&color=fff" 
+                            alt="User" 
+                            className="w-10 h-10 rounded-full border-2 border-slate-800"
+                        />
                         <div className="truncate w-28">
-                            <h4 className="text-xs font-semibold text-white leading-tight truncate">{user?.name}</h4>
-                            <span className="text-[10px] text-slate-500 capitalize leading-none">{user?.role}</span>
+                            <h4 className="text-sm font-semibold text-white leading-tight truncate">Rizky Pratama</h4>
+                            <span className="text-[11px] text-slate-400 capitalize leading-none">Administrator</span>
                         </div>
                     </div>
-                    <button 
-                        onClick={logout}
-                        className="p-2 hover:bg-rose-500/10 rounded-xl text-slate-500 hover:text-rose-400 transition-colors"
-                        title="Logout"
-                    >
-                        <SignOut size={18} />
-                    </button>
+                    <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                    </svg>
                 </div>
+                
+                <button 
+                    onClick={logout}
+                    className="flex items-center space-x-3 px-2 py-2 text-slate-400 hover:text-white transition-colors w-full"
+                >
+                    <SignOut size={20} />
+                    <span className="text-sm font-medium">Logout</span>
+                </button>
             </div>
         </aside>
     );

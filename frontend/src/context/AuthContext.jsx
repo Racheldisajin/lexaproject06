@@ -10,41 +10,50 @@ export const AuthProvider = ({ children }) => {
         // Load user from localStorage on mount
         const storedUser = localStorage.getItem('lexa_user');
         if (storedUser) {
-            setUser(JSON.parse(storedUser));
+            const parsedUser = JSON.parse(storedUser);
+            setUser(parsedUser);
+
+            // Sync with lexa_active_sessions
+            const active = JSON.parse(localStorage.getItem('lexa_active_sessions') || '[]');
+            if (!active.some(u => u.email.toLowerCase() === parsedUser.email.toLowerCase())) {
+                active.push(parsedUser);
+                localStorage.setItem('lexa_active_sessions', JSON.stringify(active));
+            }
         }
         setLoading(false);
     }, []);
 
     const login = async (email, password) => {
-        // Cek pengguna bawaan (admin/user)
+        let loggedInUser = null;
         if (password === 'password') {
             if (email === 'admin@lexa.com') {
-                const adminUser = { id: 1, name: 'Administrator', email: 'admin@lexa.com', role: 'admin', plan: 'enterprise' };
-                setUser(adminUser);
-                localStorage.setItem('lexa_user', JSON.stringify(adminUser));
-                return { success: true };
+                loggedInUser = { id: 1, name: 'Administrator', email: 'admin@lexa.com', role: 'admin', plan: 'enterprise' };
             } else if (email === 'user@lexa.com') {
-                const regularUser = { id: 2, name: 'Rizky Pratama', email: 'user@lexa.com', role: 'user', plan: 'free' };
-                setUser(regularUser);
-                localStorage.setItem('lexa_user', JSON.stringify(regularUser));
-                return { success: true };
+                loggedInUser = { id: 2, name: 'Rizky Pratama', email: 'user@lexa.com', role: 'user', plan: 'free' };
             } else if (email === 'rachel@lexa.com') {
-                const rachelUser = { id: 3, name: 'Rachel', email: 'rachel@lexa.com', role: 'user', plan: 'free' };
-                setUser(rachelUser);
-                localStorage.setItem('lexa_user', JSON.stringify(rachelUser));
-                return { success: true };
+                loggedInUser = { id: 3, name: 'Rachel', email: 'rachel@lexa.com', role: 'user', plan: 'free' };
             }
         }
 
-        // Cek pengguna yang baru didaftarkan di localStorage
-        const storedUsers = JSON.parse(localStorage.getItem('lexa_registered_users') || '[]');
-        const existingUser = storedUsers.find(u => u.email === email && u.password === password);
-        
-        if (existingUser) {
-            // Hilangkan password sebelum disimpan ke session
-            const { password, ...userSession } = existingUser;
-            setUser(userSession);
-            localStorage.setItem('lexa_user', JSON.stringify(userSession));
+        if (!loggedInUser) {
+            const storedUsers = JSON.parse(localStorage.getItem('lexa_registered_users') || '[]');
+            const existingUser = storedUsers.find(u => u.email === email && u.password === password);
+            if (existingUser) {
+                const { password, ...userSession } = existingUser;
+                loggedInUser = userSession;
+            }
+        }
+
+        if (loggedInUser) {
+            setUser(loggedInUser);
+            localStorage.setItem('lexa_user', JSON.stringify(loggedInUser));
+
+            // Sync to active sessions list
+            const active = JSON.parse(localStorage.getItem('lexa_active_sessions') || '[]');
+            if (!active.some(u => u.email.toLowerCase() === loggedInUser.email.toLowerCase())) {
+                active.push(loggedInUser);
+                localStorage.setItem('lexa_active_sessions', JSON.stringify(active));
+            }
             return { success: true };
         }
 
@@ -54,7 +63,6 @@ export const AuthProvider = ({ children }) => {
     const register = async (name, email, password) => {
         const storedUsers = JSON.parse(localStorage.getItem('lexa_registered_users') || '[]');
         
-        // Cek apakah email sudah ada
         if (storedUsers.some(u => u.email === email) || email === 'admin@lexa.com' || email === 'user@lexa.com') {
             return { success: false, message: 'Email sudah terdaftar.' };
         }
@@ -72,17 +80,45 @@ export const AuthProvider = ({ children }) => {
         storedUsers.push(newUser);
         localStorage.setItem('lexa_registered_users', JSON.stringify(storedUsers));
 
-        // Auto login
         const { password: _, ...userSession } = newUser;
         setUser(userSession);
         localStorage.setItem('lexa_user', JSON.stringify(userSession));
 
+        // Sync to active sessions list
+        const active = JSON.parse(localStorage.getItem('lexa_active_sessions') || '[]');
+        if (!active.some(u => u.email.toLowerCase() === userSession.email.toLowerCase())) {
+            active.push(userSession);
+            localStorage.setItem('lexa_active_sessions', JSON.stringify(active));
+        }
+
         return { success: true };
     };
 
-    const logout = () => {
-        setUser(null);
-        localStorage.removeItem('lexa_user');
+    const logout = (emailToLogout = null) => {
+        const targetEmail = emailToLogout || user?.email;
+        if (!targetEmail) return;
+
+        let active = JSON.parse(localStorage.getItem('lexa_active_sessions') || '[]');
+        active = active.filter(u => u.email.toLowerCase() !== targetEmail.toLowerCase());
+        localStorage.setItem('lexa_active_sessions', JSON.stringify(active));
+
+        // If the logged out user is the current active user
+        if (user && user.email.toLowerCase() === targetEmail.toLowerCase()) {
+            if (active.length > 0) {
+                // Switch to the first remaining active session
+                const nextUser = active[0];
+                setUser(nextUser);
+                localStorage.setItem('lexa_user', JSON.stringify(nextUser));
+            } else {
+                // No more active sessions, clear everything
+                setUser(null);
+                localStorage.removeItem('lexa_user');
+                localStorage.removeItem('lexa_active_sessions');
+            }
+        } else {
+            // Trigger a re-render of user to refresh dropdown items
+            setUser({ ...user });
+        }
     };
 
     const upgradePlan = (newPlan) => {
@@ -90,6 +126,14 @@ export const AuthProvider = ({ children }) => {
             const updatedUser = { ...user, plan: newPlan };
             setUser(updatedUser);
             localStorage.setItem('lexa_user', JSON.stringify(updatedUser));
+            
+            // Sync inside lexa_active_sessions as well
+            const active = JSON.parse(localStorage.getItem('lexa_active_sessions') || '[]');
+            const idx = active.findIndex(u => u.email.toLowerCase() === user.email.toLowerCase());
+            if (idx !== -1) {
+                active[idx] = updatedUser;
+                localStorage.setItem('lexa_active_sessions', JSON.stringify(active));
+            }
         }
     };
 
@@ -99,6 +143,14 @@ export const AuthProvider = ({ children }) => {
             setUser(updatedUser);
             localStorage.setItem('lexa_user', JSON.stringify(updatedUser));
             
+            // Sync inside lexa_active_sessions
+            const active = JSON.parse(localStorage.getItem('lexa_active_sessions') || '[]');
+            const idx = active.findIndex(u => u.email.toLowerCase() === user.email.toLowerCase());
+            if (idx !== -1) {
+                active[idx] = updatedUser;
+                localStorage.setItem('lexa_active_sessions', JSON.stringify(active));
+            }
+
             // Also update in registered users array if present
             const storedUsers = JSON.parse(localStorage.getItem('lexa_registered_users') || '[]');
             const index = storedUsers.findIndex(u => u.email === user.email);
@@ -110,21 +162,8 @@ export const AuthProvider = ({ children }) => {
     };
 
     const switchAccount = (email) => {
-        let targetUser = null;
-        if (email === 'admin@lexa.com') {
-            targetUser = { id: 1, name: 'Administrator', email: 'admin@lexa.com', role: 'admin', plan: 'enterprise' };
-        } else if (email === 'user@lexa.com') {
-            targetUser = { id: 2, name: 'Rizky Pratama', email: 'user@lexa.com', role: 'user', plan: 'free' };
-        } else if (email === 'rachel@lexa.com') {
-            targetUser = { id: 3, name: 'Rachel', email: 'rachel@lexa.com', role: 'user', plan: 'free' };
-        } else {
-            const storedUsers = JSON.parse(localStorage.getItem('lexa_registered_users') || '[]');
-            const existingUser = storedUsers.find(u => u.email === email);
-            if (existingUser) {
-                const { password, ...userSession } = existingUser;
-                targetUser = userSession;
-            }
-        }
+        const active = JSON.parse(localStorage.getItem('lexa_active_sessions') || '[]');
+        const targetUser = active.find(u => u.email.toLowerCase() === email.toLowerCase());
 
         if (targetUser) {
             setUser(targetUser);

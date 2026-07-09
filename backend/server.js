@@ -82,7 +82,7 @@ app.put('/api/auth/upgrade-plan', async (req, res) => {
 // Get all registered users list
 app.get('/api/auth/users', async (req, res) => {
     try {
-        const [rows] = await db.query('SELECT id, name, email, role, plan, created_at FROM users');
+        const [rows] = await db.query('SELECT id, name, email, role, plan, avatar, created_at FROM users');
         return res.json(rows);
     } catch (err) {
         return res.status(500).json({ success: false, message: err.message });

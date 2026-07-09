@@ -30,6 +30,12 @@ export default function Teams() {
     const [error, setError] = useState('');
     const [success, setSuccess] = useState('');
 
+    const getUserAvatar = (member) => {
+        if (!member) return '';
+        const u = users.find(usr => usr.id === parseInt(member.id) || usr.email?.toLowerCase() === member.email?.toLowerCase());
+        return u?.avatar || '';
+    };
+
     const fetchData = async () => {
         setLoading(true);
         try {
@@ -275,8 +281,17 @@ export default function Teams() {
                                             <tbody className="divide-y divide-slate-50">
                                                 {selectedTeam.members?.map((m) => (
                                                     <tr key={m.id} className="hover:bg-slate-50/50 transition-colors">
-                                                        <td className="py-2.5 font-medium text-slate-800">{m.name}</td>
-                                                        <td className="py-2.5 text-slate-500">{m.email}</td>
+                                                        <td className="py-2.5">
+                                                            <div className="flex items-center space-x-2.5">
+                                                                <img 
+                                                                    className="w-6 h-6 rounded-full border border-slate-200 object-cover shadow-sm"
+                                                                    src={getUserAvatar(m) || `https://ui-avatars.com/api/?name=${encodeURIComponent(m.name)}&background=bfdbfe&color=1e3a8a&bold=true`}
+                                                                    alt="Member"
+                                                                />
+                                                                <span className="font-semibold text-slate-850">{m.name}</span>
+                                                            </div>
+                                                        </td>
+                                                        <td className="py-2.5 text-slate-500 font-mono">{m.email}</td>
                                                         <td className="py-2.5">
                                                             <span className={`px-2 py-0.5 rounded-full text-[9px] font-bold uppercase ${
                                                                 m.pivot?.role === 'Leader' ? 'bg-indigo-50 text-indigo-600 border border-indigo-100' :

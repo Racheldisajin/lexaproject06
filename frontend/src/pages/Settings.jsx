@@ -17,6 +17,15 @@ export default function Settings() {
     const [status, setStatus] = useState(null);
     const [avatar, setAvatar] = useState(user?.avatar || '');
 
+    // Profile picture adjustment/cropper state
+    const [showCropModal, setShowCropModal] = useState(false);
+    const [rawImageSrc, setRawImageSrc] = useState('');
+    const [zoom, setZoom] = useState(1);
+    const [panX, setPanX] = useState(0);
+    const [panY, setPanY] = useState(0);
+    const [isDragging, setIsDragging] = useState(false);
+    const [dragStart, setDragStart] = useState({ x: 0, y: 0 });
+
     useEffect(() => {
         if (user?.avatar) {
             setAvatar(user.avatar);
@@ -81,9 +90,14 @@ export default function Settings() {
                                     if (file) {
                                         const reader = new FileReader();
                                         reader.onload = (event) => {
-                                            setAvatar(event.target.result);
+                                            setRawImageSrc(event.target.result);
+                                            setZoom(1);
+                                            setPanX(0);
+                                            setPanY(0);
+                                            setShowCropModal(true);
                                         };
                                         reader.readAsDataURL(file);
+                                        e.target.value = '';
                                     }
                                 }}
                                 className="hidden"
@@ -309,6 +323,139 @@ export default function Settings() {
                     </div>
                 </div>
             </div>
+            {/* Profile Picture Adjustment Modal */}
+            {showCropModal && (
+                <div className="fixed inset-0 bg-slate-950/65 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+                    <div className="bg-[#0b0c24] border border-slate-800 rounded-3xl p-6 max-w-sm w-full shadow-2xl relative text-center space-y-6 animate-in fade-in zoom-in-95 duration-150">
+                        <div>
+                            <h3 className="text-base font-bold text-white font-outfit">Sesuaikan Foto Profil</h3>
+                            <p className="text-xs text-slate-400 mt-1 font-sans">Geser gambar untuk memosisikan, dan gunakan slider untuk zoom.</p>
+                        </div>
+
+                        {/* Interactive Drag & Zoom Container */}
+                        <div className="flex justify-center">
+                            <div 
+                                onMouseDown={(e) => {
+                                    const clientX = e.clientX;
+                                    const clientY = e.clientY;
+                                    setDragStart({ x: clientX - panX, y: clientY - panY });
+                                    setIsDragging(true);
+                                }}
+                                onMouseMove={(e) => {
+                                    if (!isDragging) return;
+                                    setPanX(e.clientX - dragStart.x);
+                                    setPanY(e.clientY - dragStart.y);
+                                }}
+                                onMouseUp={() => setIsDragging(false)}
+                                onMouseLeave={() => setIsDragging(false)}
+                                onTouchStart={(e) => {
+                                    const clientX = e.touches[0].clientX;
+                                    const clientY = e.touches[0].clientY;
+                                    setDragStart({ x: clientX - panX, y: clientY - panY });
+                                    setIsDragging(true);
+                                }}
+                                onTouchMove={(e) => {
+                                    if (!isDragging) return;
+                                    const clientX = e.touches[0].clientX;
+                                    const clientY = e.touches[0].clientY;
+                                    setPanX(clientX - dragStart.x);
+                                    setPanY(clientY - dragStart.y);
+                                }}
+                                onTouchEnd={() => setIsDragging(false)}
+                                className="w-[200px] h-[200px] relative overflow-hidden rounded-full border-2 border-indigo-500/50 bg-slate-950 cursor-move select-none"
+                            >
+                                <img 
+                                    src={rawImageSrc}
+                                    alt="Raw Avatar"
+                                    style={{
+                                        transform: `translate(${panX}px, ${panY}px) scale(${zoom})`,
+                                        transformOrigin: 'center',
+                                        width: '100%',
+                                        height: '100%',
+                                        objectFit: 'contain',
+                                        pointerEvents: 'none'
+                                    }}
+                                />
+                            </div>
+                        </div>
+
+                        {/* Zoom Slider */}
+                        <div className="space-y-1.5 text-left">
+                            <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Zoom</label>
+                            <div className="flex items-center space-x-3">
+                                <span className="text-slate-500 text-xs">-</span>
+                                <input 
+                                    type="range" 
+                                    min="1" 
+                                    max="3" 
+                                    step="0.05"
+                                    value={zoom}
+                                    onChange={(e) => setZoom(parseFloat(e.target.value))}
+                                    className="w-full h-1.5 bg-slate-800 rounded-lg appearance-none cursor-pointer accent-indigo-500"
+                                />
+                                <span className="text-slate-500 text-xs">+</span>
+                            </div>
+                        </div>
+
+                        {/* Footer Buttons */}
+                        <div className="flex items-center justify-between pt-2">
+                            <button
+                                type="button"
+                                onClick={() => {
+                                    setShowCropModal(false);
+                                    setRawImageSrc('');
+                                }}
+                                className="text-xs text-slate-400 hover:text-slate-200 py-2.5 px-4 font-semibold hover:bg-white/5 rounded-xl transition-colors cursor-pointer"
+                            >
+                                Batal
+                            </button>
+                            <button
+                                type="button"
+                                onClick={() => {
+                                    const canvas = document.createElement('canvas');
+                                    canvas.width = 200;
+                                    canvas.height = 200;
+                                    const ctx = canvas.getContext('2d');
+                                    
+                                    const img = new Image();
+                                    img.src = rawImageSrc;
+                                    img.onload = () => {
+                                        ctx.fillStyle = '#ffffff';
+                                        ctx.fillRect(0, 0, 200, 200);
+                                        
+                                        const imgWidth = img.width;
+                                        const imgHeight = img.height;
+                                        
+                                        let drawWidth, drawHeight;
+                                        if (imgWidth > imgHeight) {
+                                            drawHeight = 200;
+                                            drawWidth = (imgWidth / imgHeight) * 200;
+                                        } else {
+                                            drawWidth = 200;
+                                            drawHeight = (imgHeight / imgWidth) * 200;
+                                        }
+                                        
+                                        const finalWidth = drawWidth * zoom;
+                                        const finalHeight = drawHeight * zoom;
+                                        
+                                        const x = 100 - finalWidth / 2 + panX;
+                                        const y = 100 - finalHeight / 2 + panY;
+                                        
+                                        ctx.drawImage(img, x, y, finalWidth, finalHeight);
+                                        
+                                        const croppedBase64 = canvas.toDataURL('image/jpeg', 0.9);
+                                        setAvatar(croppedBase64);
+                                        setShowCropModal(false);
+                                    };
+                                }}
+                                className="bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-bold py-2.5 px-5 rounded-xl shadow-lg shadow-indigo-600/20 cursor-pointer"
+                            >
+                                Terapkan Foto
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
         </div>
     );
 }

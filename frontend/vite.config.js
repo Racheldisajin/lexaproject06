@@ -8,4 +8,7 @@ export default defineConfig({
     react(),
     tailwindcss()
   ],
+  build: {
+    chunkSizeWarningLimit: 1600, // Menghilangkan warning chunk limit (1.6 MB)
+  }
 })

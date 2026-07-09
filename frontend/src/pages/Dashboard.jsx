@@ -517,8 +517,8 @@ export default function Dashboard({ stats, recentDocs, activities, onNavigateToT
                                                     {signers.length > 0 ? (
                                                         <div className="flex items-center -space-x-2">
                                                             {signers.slice(0, 3).map((signer, sIdx) => {
-                                                                const name = signer.email?.split('@')[0] || 'Signer';
-                                                                const avatarUrl = `https://ui-avatars.com/api/?name=${encodeURIComponent(name)}&background=random&color=fff`;
+                                                                const name = signer.name || signer.email?.split('@')[0] || 'Signer';
+                                                                const avatarUrl = signer.avatar || `https://ui-avatars.com/api/?name=${encodeURIComponent(name)}&background=random&color=fff`;
                                                                 return (
                                                                     <img 
                                                                         key={sIdx}

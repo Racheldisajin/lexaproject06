@@ -98,7 +98,13 @@ app.get('/api/documents', async (req, res) => {
         
         // Load target signers for each document
         const enrichedDocs = await Promise.all(docs.map(async (doc) => {
-            const [signers] = await db.query('SELECT email, status FROM document_signers WHERE document_id = ?', [doc.id]);
+            const [signers] = await db.query(
+                `SELECT ds.email, ds.status, u.name, u.avatar 
+                 FROM document_signers ds 
+                 LEFT JOIN users u ON LOWER(ds.email) = LOWER(u.email) 
+                 WHERE ds.document_id = ?`, 
+                [doc.id]
+            );
             return {
                 ...doc,
                 target_signers: signers,

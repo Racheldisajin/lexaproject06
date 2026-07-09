@@ -30,38 +30,34 @@ export default function Teams() {
     const [error, setError] = useState('');
     const [success, setSuccess] = useState('');
 
-    const fetchData = () => {
+    const fetchData = async () => {
         setLoading(true);
-        setTimeout(() => {
-            const defaultUsers = [
-                { id: 1, name: 'Administrator', email: 'admin@lexa.com' },
-                { id: 2, name: 'Rizky Pratama', email: 'user@lexa.com' },
-                { id: 3, name: 'Budi Santoso', email: 'budi@lexa.com' }
-            ];
-            const registeredUsers = JSON.parse(localStorage.getItem('lexa_registered_users') || '[]');
-            const allUsers = [...defaultUsers, ...registeredUsers];
-            setUsers(allUsers);
-
-            let storedTeams = JSON.parse(localStorage.getItem('lexa_teams') || 'null');
-            if (!storedTeams) {
-                storedTeams = [
-                    { id: 1, name: 'IT Department', description: 'Tim IT', members: [{id: 1, name: 'Administrator', email: 'admin@lexa.com', pivot: {role: 'Leader'}}] },
-                    { id: 2, name: 'Finance', description: 'Tim Keuangan', members: [{id: 3, name: 'Budi Santoso', email: 'budi@lexa.com', pivot: {role: 'Leader'}}] }
-                ];
-                localStorage.setItem('lexa_teams', JSON.stringify(storedTeams));
+        try {
+            // Load users
+            const usersRes = await fetch('http://localhost:5000/api/auth/users');
+            if (usersRes.ok) {
+                const allUsers = await usersRes.json();
+                setUsers(allUsers);
             }
-            setTeams(storedTeams);
 
-            // Refreshes the selectedTeam details
-            if (selectedTeam) {
-                const refreshed = storedTeams.find(t => t.id === selectedTeam.id);
-                if (refreshed) {
-                    setSelectedTeam(refreshed);
+            // Load teams
+            const teamsRes = await fetch('http://localhost:5000/api/teams');
+            if (teamsRes.ok) {
+                const storedTeams = await teamsRes.json();
+                setTeams(storedTeams);
+
+                if (selectedTeam) {
+                    const refreshed = storedTeams.find(t => t.id === selectedTeam.id);
+                    if (refreshed) {
+                        setSelectedTeam(refreshed);
+                    }
                 }
             }
-
+        } catch (err) {
+            setError('Gagal menghubungkan ke database server.');
+        } finally {
             setLoading(false);
-        }, 500);
+        }
     };
 
     useEffect(() => {
@@ -74,40 +70,42 @@ export default function Teams() {
         setSuccess('');
 
         try {
-            await new Promise(r => setTimeout(r, 500));
-            const storedTeams = JSON.parse(localStorage.getItem('lexa_teams') || '[]');
-            const newTeam = {
-                id: Date.now(),
-                name: newTeamName,
-                description: newTeamDesc,
-                members: [{ id: user?.id || Date.now(), name: user?.name || 'User', email: user?.email || 'user@lexa.com', pivot: { role: 'Leader' } }]
-            };
-            storedTeams.push(newTeam);
-            localStorage.setItem('lexa_teams', JSON.stringify(storedTeams));
+            const initialMembers = [{ id: user?.id || 1, name: user?.name || 'User', email: user?.email || 'user@lexa.com', pivot: { role: 'Leader' } }];
+            const response = await fetch('http://localhost:5000/api/teams', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ name: newTeamName, members: initialMembers })
+            });
 
-            setSuccess('Tim berhasil dibuat!');
-            setNewTeamName('');
-            setNewTeamDesc('');
-            fetchData();
-            setTimeout(() => {
-                setShowCreateModal(false);
-                setSuccess('');
-            }, 1000);
+            if (response.ok) {
+                setSuccess('Tim berhasil dibuat!');
+                setNewTeamName('');
+                setNewTeamDesc('');
+                fetchData();
+                setTimeout(() => {
+                    setShowCreateModal(false);
+                    setSuccess('');
+                }, 1000);
+            } else {
+                setError('Gagal menyimpan tim ke database.');
+            }
         } catch (err) {
-            setError('Gagal membuat tim.');
+            setError('Gagal menghubungkan ke database server.');
         }
     };
 
     const handleDeleteTeam = async (id) => {
         if (!confirm('Apakah Anda yakin ingin menghapus tim ini beserta seluruh anggotanya?')) return;
         try {
-            await new Promise(r => setTimeout(r, 500));
-            let storedTeams = JSON.parse(localStorage.getItem('lexa_teams') || '[]');
-            storedTeams = storedTeams.filter(t => t.id !== id);
-            localStorage.setItem('lexa_teams', JSON.stringify(storedTeams));
-
-            setSelectedTeam(null);
-            fetchData();
+            const response = await fetch(`http://localhost:5000/api/teams/${id}`, {
+                method: 'DELETE'
+            });
+            if (response.ok) {
+                setSelectedTeam(null);
+                fetchData();
+            } else {
+                alert('Gagal menghapus tim dari database.');
+            }
         } catch (err) {
             alert('Gagal menghapus tim.');
         }
@@ -119,35 +117,42 @@ export default function Teams() {
         setSuccess('');
 
         try {
-            await new Promise(r => setTimeout(r, 500));
-            const storedTeams = JSON.parse(localStorage.getItem('lexa_teams') || '[]');
-            const teamIndex = storedTeams.findIndex(t => t.id === selectedTeam.id);
-            if (teamIndex !== -1) {
-                const userToAdd = users.find(u => u.id === parseInt(selectedUserId));
-                if (userToAdd) {
-                    const isAlreadyMember = storedTeams[teamIndex].members.some(m => m.id === userToAdd.id);
-                    if (isAlreadyMember) {
-                        setError('User sudah terdaftar di tim ini.');
-                        return;
-                    }
-                    
-                    storedTeams[teamIndex].members.push({
+            const userToAdd = users.find(u => u.id === parseInt(selectedUserId));
+            if (userToAdd) {
+                const isAlreadyMember = selectedTeam.members.some(m => m.id === userToAdd.id);
+                if (isAlreadyMember) {
+                    setError('User sudah terdaftar di tim ini.');
+                    return;
+                }
+
+                const updatedMembers = [
+                    ...selectedTeam.members,
+                    {
                         id: userToAdd.id,
                         name: userToAdd.name,
                         email: userToAdd.email,
                         pivot: { role: memberRole }
-                    });
-                    localStorage.setItem('lexa_teams', JSON.stringify(storedTeams));
+                    }
+                ];
+
+                const response = await fetch('http://localhost:5000/api/teams', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ id: selectedTeam.id, name: selectedTeam.name, members: updatedMembers })
+                });
+
+                if (response.ok) {
+                    setSuccess('Anggota berhasil ditambahkan ke tim!');
+                    setSelectedUserId('');
+                    fetchData();
+                    setTimeout(() => {
+                        setShowAddMemberModal(false);
+                        setSuccess('');
+                    }, 1000);
+                } else {
+                    setError('Gagal menambahkan anggota.');
                 }
             }
-
-            setSuccess('Anggota berhasil ditambahkan ke tim!');
-            setSelectedUserId('');
-            fetchData();
-            setTimeout(() => {
-                setShowAddMemberModal(false);
-                setSuccess('');
-            }, 1000);
         } catch (err) {
             setError('Gagal menambahkan anggota.');
         }
@@ -156,14 +161,18 @@ export default function Teams() {
     const handleRemoveMember = async (userId) => {
         if (!confirm('Apakah Anda yakin ingin mengeluarkan anggota ini dari tim?')) return;
         try {
-            await new Promise(r => setTimeout(r, 500));
-            const storedTeams = JSON.parse(localStorage.getItem('lexa_teams') || '[]');
-            const teamIndex = storedTeams.findIndex(t => t.id === selectedTeam.id);
-            if (teamIndex !== -1) {
-                storedTeams[teamIndex].members = storedTeams[teamIndex].members.filter(m => m.id !== userId);
-                localStorage.setItem('lexa_teams', JSON.stringify(storedTeams));
+            const updatedMembers = selectedTeam.members.filter(m => m.id !== userId);
+            const response = await fetch('http://localhost:5000/api/teams', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ id: selectedTeam.id, name: selectedTeam.name, members: updatedMembers })
+            });
+
+            if (response.ok) {
+                fetchData();
+            } else {
+                alert('Gagal mengeluarkan anggota.');
             }
-            fetchData();
         } catch (err) {
             alert('Gagal mengeluarkan anggota.');
         }

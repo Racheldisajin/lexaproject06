@@ -19,18 +19,21 @@ export default function Certificates() {
     const [error, setError] = useState('');
     const [success, setSuccess] = useState('');
 
-    const fetchCertificates = () => {
+    const fetchCertificates = async () => {
         setLoading(true);
-        setTimeout(() => {
-            const stored = JSON.parse(localStorage.getItem('lexa_certificates') || 'null');
-            if (stored === null) {
-                localStorage.setItem('lexa_certificates', JSON.stringify([]));
-                setCertificates([]);
+        try {
+            const response = await fetch('http://localhost:5000/api/certificates');
+            if (response.ok) {
+                const data = await response.json();
+                setCertificates(data);
             } else {
-                setCertificates(stored);
+                setError('Gagal memuat data sertifikat dari database.');
             }
+        } catch (err) {
+            setError('Gagal menghubungkan ke database server.');
+        } finally {
             setLoading(false);
-        }, 500);
+        }
     };
 
     useEffect(() => {
@@ -44,32 +47,30 @@ export default function Certificates() {
         setIssuing(true);
 
         try {
-            await new Promise(r => setTimeout(r, 500));
-            
-            // Create a mock new certificate
-            const newCert = {
-                id: Date.now(),
-                name: certSource === 'generate' ? certName : 'Sertifikat Eksternal (Upload)',
-                holder: holder,
-                issued_at: new Date().toLocaleDateString('id-ID', { day: '2-digit', month: 'short', year: 'numeric' }),
-                valid_until: new Date(Date.now() + (validity.includes('90') ? 90 : validity.includes('2') ? 730 : 365) * 86400000).toLocaleDateString('id-ID', { day: '2-digit', month: 'short', year: 'numeric' }),
-                status: 'valid'
-            };
-            
-            const stored = JSON.parse(localStorage.getItem('lexa_certificates') || '[]');
-            const updated = [...stored, newCert];
-            localStorage.setItem('lexa_certificates', JSON.stringify(updated));
-            setCertificates(updated);
-            setSuccess('Sertifikat berhasil diterbitkan secara sah!');
-            
-            setTimeout(() => {
-                setShowIssueModal(false);
-                setSuccess('');
-                setCertName('');
-                setHolder('');
-            }, 1500);
+            const validityDays = validity.includes('90') ? 90 : validity.includes('2') ? 730 : 365;
+            const nameVal = certSource === 'generate' ? certName : 'Sertifikat Eksternal (Upload)';
+
+            const response = await fetch('http://localhost:5000/api/certificates', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ name: nameVal, holder, validityDays })
+            });
+
+            const data = await response.json();
+            if (response.ok && data.success) {
+                setSuccess('Sertifikat berhasil diterbitkan secara sah!');
+                fetchCertificates();
+                setTimeout(() => {
+                    setShowIssueModal(false);
+                    setSuccess('');
+                    setCertName('');
+                    setHolder('');
+                }, 1500);
+            } else {
+                setError(data.message || 'Gagal menerbitkan sertifikat.');
+            }
         } catch (err) {
-            setError(err.response?.data?.message || 'Gagal menerbitkan sertifikat.');
+            setError('Gagal terhubung ke database server.');
         } finally {
             setIssuing(false);
         }
@@ -78,11 +79,14 @@ export default function Certificates() {
     const handleDelete = async (id) => {
         if (!confirm('Apakah Anda yakin ingin mencabut/menghapus sertifikat ini?')) return;
         try {
-            await new Promise(r => setTimeout(r, 500));
-            const stored = JSON.parse(localStorage.getItem('lexa_certificates') || '[]');
-            const updated = stored.filter(c => c.id !== id);
-            localStorage.setItem('lexa_certificates', JSON.stringify(updated));
-            setCertificates(updated);
+            const response = await fetch(`http://localhost:5000/api/certificates/${id}`, {
+                method: 'DELETE'
+            });
+            if (response.ok) {
+                fetchCertificates();
+            } else {
+                alert('Gagal mencabut sertifikat dari database.');
+            }
         } catch (err) {
             alert('Gagal mencabut sertifikat.');
         }

@@ -13,22 +13,28 @@ export default function AuditTrail() {
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
 
-    const fetchActivities = () => {
+    const fetchActivities = async () => {
         setLoading(true);
-        setTimeout(() => {
-            let storedActs = JSON.parse(localStorage.getItem('lexa_activities') || 'null');
-            if (!storedActs || storedActs.length === 0) {
-                storedActs = [
-                    { id: 1, action: 'signed', description: 'Budi menandatangani "Perjanjian Kerja Sama Vendor"', created_at: new Date().toISOString(), ip_address: '192.168.1.5' },
-                    { id: 2, action: 'upload', description: 'Anda mengunggah "Surat Keputusan Direksi"', created_at: new Date(Date.now() - 3600000).toISOString(), ip_address: '10.0.0.4' },
-                    { id: 3, action: 'system', description: 'Sistem memperbarui sertifikat root LEXA CA', created_at: new Date(Date.now() - 86400000).toISOString(), ip_address: '127.0.0.1' },
-                    { id: 4, action: 'update', description: 'Rina mengubah peran "Admin" untuk tim Finance', created_at: new Date(Date.now() - 172800000).toISOString(), ip_address: '192.168.1.12' }
-                ];
-                localStorage.setItem('lexa_activities', JSON.stringify(storedActs));
+        try {
+            const response = await fetch('http://localhost:5000/api/activities');
+            if (response.ok) {
+                const data = await response.json();
+                const formatted = data.map(act => ({
+                    id: act.id,
+                    action: act.action,
+                    description: `${act.user_name} melakukan ${act.action}: ${act.description}`,
+                    created_at: act.created_at || new Date().toISOString(),
+                    ip_address: '127.0.0.1'
+                }));
+                setActivities(formatted);
+            } else {
+                setError('Gagal memuat log aktivitas.');
             }
-            setActivities(storedActs);
+        } catch (err) {
+            setError('Gagal menghubungi server database.');
+        } finally {
             setLoading(false);
-        }, 300);
+        }
     };
 
     useEffect(() => {

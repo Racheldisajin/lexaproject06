@@ -41,35 +41,38 @@ export default function Documents() {
     const [verifyResult, setVerifyResult] = useState(null);
     const [activeSubTab, setActiveSubTab] = useState('list');
 
-    const fetchDocuments = () => {
+    const fetchDocuments = async () => {
         setLoading(true);
-        setTimeout(() => {
-            // Load existing docs or initialize empty
-            let storedDocs = JSON.parse(localStorage.getItem('lexa_mock_docs') || 'null');
-            if (storedDocs === null) {
-                storedDocs = [];
-                localStorage.setItem('lexa_mock_docs', JSON.stringify(storedDocs));
+        try {
+            const response = await fetch('http://localhost:5000/api/documents');
+            if (response.ok) {
+                const data = await response.json();
+                data.sort((a, b) => b.id - a.id);
+                setDocuments(data);
             }
-            // Sort by newest first
-            storedDocs.sort((a, b) => b.id - a.id);
-            setDocuments(storedDocs);
+        } catch (err) {
+            console.error('Error fetching documents from db:', err.message);
+        } finally {
             setLoading(false);
-        }, 500);
+        }
     };
 
     useEffect(() => {
         fetchDocuments();
         
-        // Load available users
-        const defaultUsers = [
-            { id: 1, name: 'Administrator', email: 'admin@lexa.com' },
-            { id: 2, name: 'Rizky Pratama', email: 'user@lexa.com' }
-        ];
-        const registeredUsers = JSON.parse(localStorage.getItem('lexa_registered_users') || '[]');
-        
-        // Combine and exclude current user
-        const allUsers = [...defaultUsers, ...registeredUsers].filter(u => u.email !== user?.email);
-        setAvailableUsers(allUsers);
+        const loadUsers = async () => {
+            try {
+                const response = await fetch('http://localhost:5000/api/auth/users');
+                if (response.ok) {
+                    const data = await response.json();
+                    const filtered = data.filter(u => u.email !== user?.email);
+                    setAvailableUsers(filtered);
+                }
+            } catch (err) {
+                console.error('Error loading users:', err.message);
+            }
+        };
+        loadUsers();
     }, [user]);
 
     const handleFileChange = (e) => {
@@ -89,34 +92,34 @@ export default function Documents() {
         setUploading(true);
 
         try {
-            await new Promise(r => setTimeout(r, 800));
-            
-            const storedDocs = JSON.parse(localStorage.getItem('lexa_mock_docs') || '[]');
-            const newDoc = {
-                id: Date.now(),
-                title: fileTitle,
-                type: docType,
-                status: 'pending',
-                uploaded_by: { name: user.name, email: user.email },
-                target_signers: targetSigners.map(email => ({ email, status: 'pending' })),
-                date: new Date().toLocaleDateString('id-ID', { day: '2-digit', month: 'short', year: 'numeric' })
-            };
-            
-            storedDocs.push(newDoc);
-            localStorage.setItem('lexa_mock_docs', JSON.stringify(storedDocs));
-            
-            setSuccess('Dokumen berhasil diunggah & dikirim ke penandatangan!');
-            setFileTitle('');
-            setSelectedFile(null);
-            
-            fetchDocuments();
-            
-            setTimeout(() => {
-                setShowUploadModal(false);
-                setSuccess('');
-            }, 1500);
+            const response = await fetch('http://localhost:5000/api/documents', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    title: fileTitle,
+                    type: docType,
+                    uploaded_by: { name: user.name, email: user.email },
+                    target_signer_emails: targetSigners
+                })
+            });
+
+            const data = await response.json();
+            if (response.ok && data.success) {
+                setSuccess('Dokumen berhasil diunggah & dikirim ke penandatangan!');
+                setFileTitle('');
+                setSelectedFile(null);
+                setTargetSigners([]);
+                fetchDocuments();
+                
+                setTimeout(() => {
+                    setShowUploadModal(false);
+                    setSuccess('');
+                }, 1500);
+            } else {
+                setError(data.message || 'Gagal menyimpan dokumen ke database.');
+            }
         } catch (err) {
-            setError('Gagal mengunggah dokumen.');
+            setError('Gagal menghubungi server database.');
         } finally {
             setUploading(false);
         }
@@ -139,10 +142,14 @@ export default function Documents() {
     const handleDelete = async (id) => {
         if (!confirm('Apakah Anda yakin ingin menghapus dokumen ini?')) return;
         try {
-            let storedDocs = JSON.parse(localStorage.getItem('lexa_mock_docs') || '[]');
-            storedDocs = storedDocs.filter(d => d.id !== id);
-            localStorage.setItem('lexa_mock_docs', JSON.stringify(storedDocs));
-            fetchDocuments();
+            const response = await fetch(`http://localhost:5000/api/documents/${id}`, {
+                method: 'DELETE'
+            });
+            if (response.ok) {
+                fetchDocuments();
+            } else {
+                alert('Gagal menghapus dokumen dari database.');
+            }
         } catch (err) {
             alert('Gagal menghapus dokumen.');
         }

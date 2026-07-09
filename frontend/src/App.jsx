@@ -54,19 +54,17 @@ function DashboardLayout() {
 
     const [isSidebarOpen, setIsSidebarOpen] = useState(false);
 
-    const fetchDashboardData = () => {
-        // Mock data fetch
-        setTimeout(() => {
-            let storedDocs = JSON.parse(localStorage.getItem('lexa_mock_docs') || 'null');
-            if (storedDocs === null) {
-                storedDocs = [];
-                localStorage.setItem('lexa_mock_docs', JSON.stringify(storedDocs));
+    const fetchDashboardData = async () => {
+        try {
+            // 1. Fetch Documents
+            const docsRes = await fetch('http://localhost:5000/api/documents');
+            let sortedDocs = [];
+            if (docsRes.ok) {
+                const docs = await docsRes.json();
+                sortedDocs = [...docs].sort((a, b) => b.id - a.id);
             }
 
-            // Sort by newest first
-            const sortedDocs = [...storedDocs].sort((a, b) => b.id - a.id);
-            
-            // Calculate dynamic stats based on role/auth context if needed, here just raw docs
+            // Calculate stats
             const signed = sortedDocs.filter(d => d.status === 'signed').length;
             const pending = sortedDocs.filter(d => d.status === 'pending').length;
             const draft = sortedDocs.filter(d => d.status === 'draft').length;
@@ -80,8 +78,13 @@ function DashboardLayout() {
                 }
                 return d.target_signer_email?.toLowerCase() === user?.email?.toLowerCase();
             }).length;
-            
-            const storedCerts = JSON.parse(localStorage.getItem('lexa_certificates') || '[]');
+
+            // 2. Fetch Certificates
+            const certsRes = await fetch('http://localhost:5000/api/certificates');
+            let storedCerts = [];
+            if (certsRes.ok) {
+                storedCerts = await certsRes.json();
+            }
             const certTotal = storedCerts.length;
             const certValid = storedCerts.filter(c => c.status === 'valid').length;
             const certExpired = storedCerts.filter(c => c.status === 'expired').length;
@@ -97,18 +100,27 @@ function DashboardLayout() {
                     nextExpiry: storedCerts.find(c => c.status === 'valid')?.name || '-'
                 }
             };
-            
-            let storedActs = JSON.parse(localStorage.getItem('lexa_activities') || 'null');
-            if (storedActs === null) {
-                storedActs = [];
-                localStorage.setItem('lexa_activities', JSON.stringify(storedActs));
+
+            // 3. Fetch Activities
+            const actsRes = await fetch('http://localhost:5000/api/activities');
+            let storedActs = [];
+            if (actsRes.ok) {
+                const acts = await actsRes.json();
+                storedActs = acts.map(act => ({
+                    id: act.id,
+                    action: act.action,
+                    description: `${act.user_name} melakukan ${act.action}: ${act.description}`,
+                    time: act.time || 'WIB'
+                }));
             }
 
             setStats(dynamicStats);
-            setRecentDocs(sortedDocs.slice(0, 5)); // Get top 5 recent docs (newest first)
+            setRecentDocs(sortedDocs.slice(0, 5));
             setActivities(storedActs);
             setNotifications(getMockNotifications());
-        }, 300);
+        } catch (err) {
+            console.error('Error fetching dashboard data from backend:', err.message);
+        }
     };
 
     useEffect(() => {

@@ -30,25 +30,30 @@ export default function Signatures() {
     const [error, setError] = useState('');
     const [success, setSuccess] = useState('');
 
-    const fetchData = () => {
+    const fetchData = async () => {
         setLoading(true);
-        setTimeout(() => {
-            const storedDocs = JSON.parse(localStorage.getItem('lexa_mock_docs') || '[]');
-            setSignatures(storedDocs);
-            
-            // Available docs to request signature (not signed yet)
-            setDocuments(storedDocs.filter(d => d.status !== 'signed' && d.uploaded_by.email === user?.email));
-            
-            // Users list
-            const defaultUsers = [
-                { id: 1, name: 'Administrator', email: 'admin@lexa.com' },
-                { id: 2, name: 'Rizky Pratama', email: 'user@lexa.com' }
-            ];
-            const registeredUsers = JSON.parse(localStorage.getItem('lexa_registered_users') || '[]');
-            setUsers([...defaultUsers, ...registeredUsers].filter(u => u.email !== user?.email));
-            
+        try {
+            // Load documents from backend
+            const docsRes = await fetch('http://localhost:5000/api/documents');
+            if (docsRes.ok) {
+                const data = await docsRes.json();
+                setSignatures(data);
+                
+                // Available docs to request signature (not signed yet and uploaded by current user)
+                setDocuments(data.filter(d => d.status !== 'signed' && d.uploaded_by_email === user?.email));
+            }
+
+            // Load users list
+            const usersRes = await fetch('http://localhost:5000/api/auth/users');
+            if (usersRes.ok) {
+                const allUsers = await usersRes.json();
+                setUsers(allUsers.filter(u => u.email !== user?.email));
+            }
+        } catch (err) {
+            console.error('Error fetching data for signatures:', err.message);
+        } finally {
             setLoading(false);
-        }, 500);
+        }
     };
 
     useEffect(() => {
@@ -62,27 +67,38 @@ export default function Signatures() {
         setRequesting(true);
 
         try {
-            await new Promise(r => setTimeout(r, 500));
-            
-            // Update document with new target signer
-            const storedDocs = JSON.parse(localStorage.getItem('lexa_mock_docs') || '[]');
-            const docIndex = storedDocs.findIndex(d => d.id === parseInt(selectedDocId));
-            if (docIndex !== -1) {
-                storedDocs[docIndex].target_signer_email = selectedSignerId;
-                storedDocs[docIndex].status = 'pending';
-                localStorage.setItem('lexa_mock_docs', JSON.stringify(storedDocs));
+            const response = await fetch(`http://localhost:5000/api/documents/${selectedDocId}/request-signer`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ email: selectedSignerId })
+            });
+
+            const data = await response.json();
+            if (response.ok && data.success) {
+                // Log action to activities table
+                await fetch('http://localhost:5000/api/activities', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        user_name: user?.name || 'User',
+                        action: 'request',
+                        description: `meminta tanda tangan dari ${selectedSignerId} untuk dokumen ID ${selectedDocId}`
+                    })
+                });
+
+                setSuccess('Permintaan tanda tangan berhasil dikirim!');
+                setSelectedDocId('');
+                setSelectedSignerId('');
+                fetchData();
+                setTimeout(() => {
+                    setShowRequestModal(false);
+                    setSuccess('');
+                }, 1500);
+            } else {
+                setError(data.message || 'Gagal mengirim permintaan tanda tangan.');
             }
-            
-            setSuccess('Permintaan tanda tangan berhasil dikirim!');
-            setSelectedDocId('');
-            setSelectedSignerId('');
-            fetchData();
-            setTimeout(() => {
-                setShowRequestModal(false);
-                setSuccess('');
-            }, 1500);
         } catch (err) {
-            setError('Gagal mengirim permintaan tanda tangan.');
+            setError('Gagal terhubung ke database server.');
         } finally {
             setRequesting(false);
         }
@@ -173,41 +189,32 @@ export default function Signatures() {
     const performSign = async (id) => {
         try {
             setLoading(true);
-            await new Promise(r => setTimeout(r, 500));
             
-            const storedDocs = JSON.parse(localStorage.getItem('lexa_mock_docs') || '[]');
-            const docIndex = storedDocs.findIndex(d => d.id === id);
-            
-            if (docIndex !== -1) {
-                const doc = storedDocs[docIndex];
-                
-                // Update in multi-signer array
-                if (doc.target_signers) {
-                    const tsIndex = doc.target_signers.findIndex(ts => ts.email.toLowerCase() === user?.email?.toLowerCase());
-                    if (tsIndex !== -1) {
-                        doc.target_signers[tsIndex].status = 'signed';
-                        doc.target_signers[tsIndex].signed_at = new Date().toISOString();
-                    }
-                    // Check if all are signed
-                    const allSigned = doc.target_signers.every(ts => ts.status === 'signed');
-                    if (allSigned) {
-                        doc.status = 'signed';
-                        doc.signed_at = new Date().toISOString();
-                    }
-                } else {
-                    // Fallback for old data structure
-                    doc.status = 'signed';
-                    doc.signed_at = new Date().toISOString();
-                }
-                
-                localStorage.setItem('lexa_mock_docs', JSON.stringify(storedDocs));
-                setSuccess('Dokumen berhasil ditandatangani!');
-                setTimeout(() => setSuccess(''), 3000);
+            const response = await fetch(`http://localhost:5000/api/documents/${id}/sign`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ email: user?.email })
+            });
+
+            const data = await response.json();
+            if (response.ok && data.success) {
+                // Log action to activities table
+                await fetch('http://localhost:5000/api/activities', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        user_name: user?.name || 'User',
+                        action: 'signed',
+                        description: `menandatangani dokumen ID ${id}`
+                    })
+                });
+
+                fetchData();
+            } else {
+                alert('Gagal menandatangani dokumen.');
             }
-            
-            fetchData();
         } catch (err) {
-            alert('Gagal menandatangani dokumen.');
+            console.error('Error signing document:', err.message);
         } finally {
             setLoading(false);
         }

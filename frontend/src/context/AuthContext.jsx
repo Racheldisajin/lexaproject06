@@ -31,88 +31,73 @@ export const AuthProvider = ({ children }) => {
     }, []);
 
     const login = async (email, password) => {
-        let loggedInUser = null;
-        if (password === 'password') {
-            if (email === 'admin@lexa.com') {
-                loggedInUser = { id: 1, name: 'Administrator', email: 'admin@lexa.com', role: 'admin', plan: 'enterprise' };
-            } else if (email === 'user@lexa.com') {
-                loggedInUser = { id: 2, name: 'Rizky Pratama', email: 'user@lexa.com', role: 'user', plan: 'free' };
-            } else if (email === 'rachel@lexa.com') {
-                loggedInUser = { id: 3, name: 'Rachel', email: 'rachel@lexa.com', role: 'user', plan: 'free' };
+        try {
+            const response = await fetch('http://localhost:5000/api/auth/login', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ email, password })
+            });
+            const data = await response.json();
+            if (response.ok && data.success) {
+                const loggedInUser = data.user;
+                setUser(loggedInUser);
+                localStorage.setItem('lexa_user', JSON.stringify(loggedInUser));
+
+                // Sync to active sessions list
+                const active = JSON.parse(localStorage.getItem('lexa_active_sessions') || '[]');
+                if (!active.some(u => u.email.toLowerCase() === loggedInUser.email.toLowerCase())) {
+                    active.push(loggedInUser);
+                    localStorage.setItem('lexa_active_sessions', JSON.stringify(active));
+                }
+
+                // Sync to remembered users
+                const remembered = JSON.parse(localStorage.getItem('lexa_remembered_users') || '[]');
+                if (!remembered.some(u => u.email.toLowerCase() === loggedInUser.email.toLowerCase())) {
+                    remembered.push(loggedInUser);
+                    localStorage.setItem('lexa_remembered_users', JSON.stringify(remembered));
+                }
+                return { success: true };
+            } else {
+                return { success: false, message: data.message || 'Email atau password salah.' };
             }
+        } catch (err) {
+            return { success: false, message: 'Gagal terhubung ke database. Pastikan backend server aktif.' };
         }
-
-        if (!loggedInUser) {
-            const storedUsers = JSON.parse(localStorage.getItem('lexa_registered_users') || '[]');
-            const existingUser = storedUsers.find(u => u.email === email && u.password === password);
-            if (existingUser) {
-                const { password, ...userSession } = existingUser;
-                loggedInUser = userSession;
-            }
-        }
-
-        if (loggedInUser) {
-            setUser(loggedInUser);
-            localStorage.setItem('lexa_user', JSON.stringify(loggedInUser));
-
-            // Sync to active sessions list
-            const active = JSON.parse(localStorage.getItem('lexa_active_sessions') || '[]');
-            if (!active.some(u => u.email.toLowerCase() === loggedInUser.email.toLowerCase())) {
-                active.push(loggedInUser);
-                localStorage.setItem('lexa_active_sessions', JSON.stringify(active));
-            }
-
-            // Sync to remembered users
-            const remembered = JSON.parse(localStorage.getItem('lexa_remembered_users') || '[]');
-            if (!remembered.some(u => u.email.toLowerCase() === loggedInUser.email.toLowerCase())) {
-                remembered.push(loggedInUser);
-                localStorage.setItem('lexa_remembered_users', JSON.stringify(remembered));
-            }
-            return { success: true };
-        }
-
-        return { success: false, message: 'Email atau password yang Anda masukkan salah.' };
     };
 
     const register = async (name, email, password) => {
-        const storedUsers = JSON.parse(localStorage.getItem('lexa_registered_users') || '[]');
-        
-        if (storedUsers.some(u => u.email === email) || email === 'admin@lexa.com' || email === 'user@lexa.com') {
-            return { success: false, message: 'Email sudah terdaftar.' };
+        try {
+            const response = await fetch('http://localhost:5000/api/auth/register', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ name, email, password })
+            });
+            const data = await response.json();
+            if (response.ok && data.success) {
+                const userSession = data.user;
+                setUser(userSession);
+                localStorage.setItem('lexa_user', JSON.stringify(userSession));
+
+                // Sync to active sessions list
+                const active = JSON.parse(localStorage.getItem('lexa_active_sessions') || '[]');
+                if (!active.some(u => u.email.toLowerCase() === userSession.email.toLowerCase())) {
+                    active.push(userSession);
+                    localStorage.setItem('lexa_active_sessions', JSON.stringify(active));
+                }
+
+                // Sync to remembered users
+                const remembered = JSON.parse(localStorage.getItem('lexa_remembered_users') || '[]');
+                if (!remembered.some(u => u.email.toLowerCase() === userSession.email.toLowerCase())) {
+                    remembered.push(userSession);
+                    localStorage.setItem('lexa_remembered_users', JSON.stringify(remembered));
+                }
+                return { success: true };
+            } else {
+                return { success: false, message: data.message || 'Gagal mendaftar.' };
+            }
+        } catch (err) {
+            return { success: false, message: 'Gagal terhubung ke database. Pastikan backend server aktif.' };
         }
-
-        const newUser = {
-            id: Date.now(),
-            name,
-            email,
-            password,
-            role: 'user',
-            plan: 'free',
-            created_at: new Date().toISOString(),
-        };
-
-        storedUsers.push(newUser);
-        localStorage.setItem('lexa_registered_users', JSON.stringify(storedUsers));
-
-        const { password: _, ...userSession } = newUser;
-        setUser(userSession);
-        localStorage.setItem('lexa_user', JSON.stringify(userSession));
-
-        // Sync to active sessions list
-        const active = JSON.parse(localStorage.getItem('lexa_active_sessions') || '[]');
-        if (!active.some(u => u.email.toLowerCase() === userSession.email.toLowerCase())) {
-            active.push(userSession);
-            localStorage.setItem('lexa_active_sessions', JSON.stringify(active));
-        }
-
-        // Sync to remembered users
-        const remembered = JSON.parse(localStorage.getItem('lexa_remembered_users') || '[]');
-        if (!remembered.some(u => u.email.toLowerCase() === userSession.email.toLowerCase())) {
-            remembered.push(userSession);
-            localStorage.setItem('lexa_remembered_users', JSON.stringify(remembered));
-        }
-
-        return { success: true };
     };
 
     const logout = (emailToLogout = null) => {
@@ -193,42 +178,58 @@ export const AuthProvider = ({ children }) => {
         }
     };
 
-    const upgradePlan = (newPlan) => {
+    const upgradePlan = async (newPlan) => {
         if (user) {
-            const updatedUser = { ...user, plan: newPlan };
-            setUser(updatedUser);
-            localStorage.setItem('lexa_user', JSON.stringify(updatedUser));
-            
-            // Sync inside lexa_active_sessions as well
-            const active = JSON.parse(localStorage.getItem('lexa_active_sessions') || '[]');
-            const idx = active.findIndex(u => u.email.toLowerCase() === user.email.toLowerCase());
-            if (idx !== -1) {
-                active[idx] = updatedUser;
-                localStorage.setItem('lexa_active_sessions', JSON.stringify(active));
+            try {
+                const response = await fetch('http://localhost:5000/api/auth/upgrade-plan', {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ email: user.email, plan: newPlan })
+                });
+                const data = await response.json();
+                if (response.ok && data.success) {
+                    const updatedUser = data.user;
+                    setUser(updatedUser);
+                    localStorage.setItem('lexa_user', JSON.stringify(updatedUser));
+                    
+                    // Sync inside lexa_active_sessions as well
+                    const active = JSON.parse(localStorage.getItem('lexa_active_sessions') || '[]');
+                    const idx = active.findIndex(u => u.email.toLowerCase() === user.email.toLowerCase());
+                    if (idx !== -1) {
+                        active[idx] = updatedUser;
+                        localStorage.setItem('lexa_active_sessions', JSON.stringify(active));
+                    }
+                }
+            } catch (err) {
+                console.error('Error upgrading plan on backend:', err.message);
             }
         }
     };
 
-    const updateUser = (updatedFields) => {
+    const updateUser = async (updatedFields) => {
         if (user) {
-            const updatedUser = { ...user, ...updatedFields };
-            setUser(updatedUser);
-            localStorage.setItem('lexa_user', JSON.stringify(updatedUser));
-            
-            // Sync inside lexa_active_sessions
-            const active = JSON.parse(localStorage.getItem('lexa_active_sessions') || '[]');
-            const idx = active.findIndex(u => u.email.toLowerCase() === user.email.toLowerCase());
-            if (idx !== -1) {
-                active[idx] = updatedUser;
-                localStorage.setItem('lexa_active_sessions', JSON.stringify(active));
-            }
-
-            // Also update in registered users array if present
-            const storedUsers = JSON.parse(localStorage.getItem('lexa_registered_users') || '[]');
-            const index = storedUsers.findIndex(u => u.email === user.email);
-            if (index !== -1) {
-                storedUsers[index] = { ...storedUsers[index], ...updatedFields };
-                localStorage.setItem('lexa_registered_users', JSON.stringify(storedUsers));
+            try {
+                const response = await fetch('http://localhost:5000/api/auth/user', {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ email: user.email, ...updatedFields })
+                });
+                const data = await response.json();
+                if (response.ok && data.success) {
+                    const updatedUser = data.user;
+                    setUser(updatedUser);
+                    localStorage.setItem('lexa_user', JSON.stringify(updatedUser));
+                    
+                    // Sync inside lexa_active_sessions
+                    const active = JSON.parse(localStorage.getItem('lexa_active_sessions') || '[]');
+                    const idx = active.findIndex(u => u.email.toLowerCase() === user.email.toLowerCase());
+                    if (idx !== -1) {
+                        active[idx] = updatedUser;
+                        localStorage.setItem('lexa_active_sessions', JSON.stringify(active));
+                    }
+                }
+            } catch (err) {
+                console.error('Error updating user on backend:', err.message);
             }
         }
     };

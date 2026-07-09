@@ -12,27 +12,31 @@ export default function UsersAndRoles() {
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
 
-    const fetchUsers = () => {
+    const fetchUsers = async () => {
         setLoading(true);
-        setTimeout(() => {
-            const defaultUsers = [
-                { id: 1, name: 'Budi Santoso', email: 'budi@lexa.com', role: 'admin', team: 'IT', status: 'active', created_at: '2026-01-10T08:00:00.000Z', last_login: new Date().toISOString() },
-                { id: 2, name: 'Siti Aminah', email: 'siti@lexa.com', role: 'member', team: 'Finance', status: 'active', created_at: '2026-02-15T09:30:00.000Z', last_login: new Date(Date.now() - 3600000).toISOString() }
-            ];
-            const registeredUsers = JSON.parse(localStorage.getItem('lexa_registered_users') || '[]');
-            const formattedRegistered = registeredUsers.map((u, index) => ({
-                id: u.id || (100 + index),
-                name: u.name,
-                email: u.email,
-                role: u.role || 'member',
-                team: 'General',
-                status: 'active',
-                created_at: u.created_at || new Date().toISOString(),
-                last_login: new Date().toISOString()
-            }));
-            setUsers([...defaultUsers, ...formattedRegistered]);
+        try {
+            const response = await fetch('http://localhost:5000/api/auth/users');
+            if (response.ok) {
+                const data = await response.json();
+                const formatted = data.map((u) => ({
+                    id: u.id,
+                    name: u.name,
+                    email: u.email,
+                    role: u.role || 'member',
+                    team: u.role === 'admin' ? 'Management' : 'General',
+                    status: 'active',
+                    created_at: u.created_at || new Date().toISOString(),
+                    last_login: new Date().toISOString()
+                }));
+                setUsers(formatted);
+            } else {
+                setError('Gagal memuat data pengguna dari database.');
+            }
+        } catch (err) {
+            setError('Gagal menghubungi server database.');
+        } finally {
             setLoading(false);
-        }, 500);
+        }
     };
 
     useEffect(() => {

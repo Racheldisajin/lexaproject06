@@ -16,8 +16,9 @@ import {
 } from '@phosphor-icons/react';
 
 export default function Sidebar({ currentTab, setCurrentTab, isOpen }) {
-    const { user, logout, switchAccount } = useAuth();
+    const { user, logout, logoutAll, switchAccount } = useAuth();
     const [showSwitchDropdown, setShowSwitchDropdown] = useState(false);
+    const [showLogoutModal, setShowLogoutModal] = useState(false);
     const navigate = useNavigate();
 
     const getSwitchableAccounts = () => {
@@ -158,13 +159,52 @@ export default function Sidebar({ currentTab, setCurrentTab, isOpen }) {
                 </div>
                 
                 <button 
-                    onClick={logout}
+                    onClick={() => setShowLogoutModal(true)}
                     className="flex items-center space-x-3 px-2 py-2 text-slate-400 hover:text-white transition-colors w-full"
                 >
                     <SignOut size={20} />
                     <span className="text-sm font-medium">Logout</span>
                 </button>
             </div>
+
+            {/* Logout Options Modal (Instagram-style) */}
+            {showLogoutModal && (
+                <div className="fixed inset-0 bg-slate-950/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+                    <div className="bg-[#0b0c24] border border-slate-800 rounded-3xl p-6 max-w-sm w-full shadow-2xl relative text-center space-y-5 animate-in fade-in zoom-in-95 duration-150">
+                        <div>
+                            <h3 className="text-base font-bold text-white font-outfit">Logout dari Akun Anda?</h3>
+                            <p className="text-xs text-slate-400 mt-1 font-sans">Pilih jenis keluar yang ingin Anda lakukan.</p>
+                        </div>
+
+                        <div className="flex flex-col space-y-2">
+                            <button
+                                onClick={() => {
+                                    setShowLogoutModal(false);
+                                    logout();
+                                }}
+                                className="w-full py-3 bg-rose-600 hover:bg-rose-500 text-white text-xs font-bold rounded-2xl transition-all cursor-pointer font-sans"
+                            >
+                                Logout dari {user?.name || 'Akun Saat Ini'}
+                            </button>
+                            <button
+                                onClick={() => {
+                                    setShowLogoutModal(false);
+                                    logoutAll();
+                                }}
+                                className="w-full py-3 bg-slate-900 border border-slate-800 hover:bg-slate-800 text-slate-200 text-xs font-bold rounded-2xl transition-all cursor-pointer font-sans"
+                            >
+                                Logout dari Semua Akun
+                            </button>
+                            <button
+                                onClick={() => setShowLogoutModal(false)}
+                                className="w-full py-3 bg-transparent text-slate-400 hover:text-slate-200 text-xs font-semibold rounded-2xl transition-all cursor-pointer font-sans"
+                            >
+                                Batal
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
         </aside>
     );
 }

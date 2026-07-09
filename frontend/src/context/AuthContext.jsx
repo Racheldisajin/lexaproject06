@@ -19,6 +19,13 @@ export const AuthProvider = ({ children }) => {
                 active.push(parsedUser);
                 localStorage.setItem('lexa_active_sessions', JSON.stringify(active));
             }
+
+            // Sync with lexa_remembered_users
+            const remembered = JSON.parse(localStorage.getItem('lexa_remembered_users') || '[]');
+            if (!remembered.some(u => u.email.toLowerCase() === parsedUser.email.toLowerCase())) {
+                remembered.push(parsedUser);
+                localStorage.setItem('lexa_remembered_users', JSON.stringify(remembered));
+            }
         }
         setLoading(false);
     }, []);
@@ -53,6 +60,13 @@ export const AuthProvider = ({ children }) => {
             if (!active.some(u => u.email.toLowerCase() === loggedInUser.email.toLowerCase())) {
                 active.push(loggedInUser);
                 localStorage.setItem('lexa_active_sessions', JSON.stringify(active));
+            }
+
+            // Sync to remembered users
+            const remembered = JSON.parse(localStorage.getItem('lexa_remembered_users') || '[]');
+            if (!remembered.some(u => u.email.toLowerCase() === loggedInUser.email.toLowerCase())) {
+                remembered.push(loggedInUser);
+                localStorage.setItem('lexa_remembered_users', JSON.stringify(remembered));
             }
             return { success: true };
         }
@@ -91,6 +105,13 @@ export const AuthProvider = ({ children }) => {
             localStorage.setItem('lexa_active_sessions', JSON.stringify(active));
         }
 
+        // Sync to remembered users
+        const remembered = JSON.parse(localStorage.getItem('lexa_remembered_users') || '[]');
+        if (!remembered.some(u => u.email.toLowerCase() === userSession.email.toLowerCase())) {
+            remembered.push(userSession);
+            localStorage.setItem('lexa_remembered_users', JSON.stringify(remembered));
+        }
+
         return { success: true };
     };
 
@@ -118,6 +139,57 @@ export const AuthProvider = ({ children }) => {
         } else {
             // Trigger a re-render of user to refresh dropdown items
             setUser({ ...user });
+        }
+    };
+
+    const logoutAll = () => {
+        setUser(null);
+        localStorage.removeItem('lexa_user');
+        localStorage.removeItem('lexa_active_sessions');
+    };
+
+    const loginRememberedUser = (email) => {
+        const remembered = JSON.parse(localStorage.getItem('lexa_remembered_users') || '[]');
+        const targetUser = remembered.find(u => u.email.toLowerCase() === email.toLowerCase());
+        
+        if (targetUser) {
+            setUser(targetUser);
+            localStorage.setItem('lexa_user', JSON.stringify(targetUser));
+
+            // Sync to active sessions
+            const active = JSON.parse(localStorage.getItem('lexa_active_sessions') || '[]');
+            if (!active.some(u => u.email.toLowerCase() === targetUser.email.toLowerCase())) {
+                active.push(targetUser);
+                localStorage.setItem('lexa_active_sessions', JSON.stringify(active));
+            }
+            return true;
+        }
+        return false;
+    };
+
+    const removeRememberedUser = (email) => {
+        let remembered = JSON.parse(localStorage.getItem('lexa_remembered_users') || '[]');
+        remembered = remembered.filter(u => u.email.toLowerCase() !== email.toLowerCase());
+        localStorage.setItem('lexa_remembered_users', JSON.stringify(remembered));
+
+        // Also clean it from active sessions if present
+        let active = JSON.parse(localStorage.getItem('lexa_active_sessions') || '[]');
+        if (active.some(u => u.email.toLowerCase() === email.toLowerCase())) {
+            active = active.filter(u => u.email.toLowerCase() !== email.toLowerCase());
+            localStorage.setItem('lexa_active_sessions', JSON.stringify(active));
+            
+            // If the removed user is the current user, log out or switch
+            if (user && user.email.toLowerCase() === email.toLowerCase()) {
+                if (active.length > 0) {
+                    const nextUser = active[0];
+                    setUser(nextUser);
+                    localStorage.setItem('lexa_user', JSON.stringify(nextUser));
+                } else {
+                    setUser(null);
+                    localStorage.removeItem('lexa_user');
+                    localStorage.removeItem('lexa_active_sessions');
+                }
+            }
         }
     };
 
@@ -174,7 +246,19 @@ export const AuthProvider = ({ children }) => {
     };
 
     return (
-        <AuthContext.Provider value={{ user, loading, login, register, logout, upgradePlan, updateUser, switchAccount }}>
+        <AuthContext.Provider value={{ 
+            user, 
+            loading, 
+            login, 
+            register, 
+            logout, 
+            logoutAll,
+            loginRememberedUser,
+            removeRememberedUser,
+            upgradePlan, 
+            updateUser, 
+            switchAccount 
+        }}>
             {children}
         </AuthContext.Provider>
     );
